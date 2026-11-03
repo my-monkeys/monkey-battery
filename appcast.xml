@@ -5,5 +5,14 @@
     <link>https://github.com/my-monkeys/monkey-battery</link>
     <description>Updates for Monkey Battery, the macOS menu bar battery countdown.</description>
     <language>en</language>
+    <item>
+      <title>0.1.0</title>
+      <link>https://github.com/my-monkeys/monkey-battery/releases/tag/v0.1.0</link>
+      <sparkle:version>100</sparkle:version>
+      <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <pubDate>Tue, 03 Nov 2026 19:35:46 +0000</pubDate>
+      <enclosure url="https://github.com/my-monkeys/monkey-battery/releases/download/v0.1.0/MonkeyBattery-0.1.0.dmg" sparkle:edSignature="z9CC3kObIZwpZ1DBqbpwcWHhUUIx9TxHr7goDqlo7uLYLSdVdd8TVu6cDneiReHOzAp/piVwUKSunvHfWAkwDg==" length="3505496" type="application/octet-stream" />
+    </item>
   </channel>
 </rss>
