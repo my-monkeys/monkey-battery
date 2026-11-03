@@ -86,8 +86,11 @@ swift build -c release --arch arm64 --arch x86_64
 BIN_PATH="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
 [[ -x "$BIN_PATH/$EXECUTABLE_NAME" ]] || die "executable not found at $BIN_PATH/$EXECUTABLE_NAME"
 
+# Xcode 16's SwiftPM puts it under Frameworks/; the swift-build backend of Swift 6.4 puts it
+# next to the executable. Either is fine — what matters is that one copy is found.
 SPARKLE_FRAMEWORK="$BIN_PATH/Frameworks/Sparkle.framework"
-[[ -d "$SPARKLE_FRAMEWORK" ]] || die "Sparkle.framework not found at $SPARKLE_FRAMEWORK"
+[[ -d "$SPARKLE_FRAMEWORK" ]] || SPARKLE_FRAMEWORK="$BIN_PATH/Sparkle.framework"
+[[ -d "$SPARKLE_FRAMEWORK" ]] || die "Sparkle.framework not found under $BIN_PATH"
 
 info "Assembling $APP"
 rm -rf "$APP"
