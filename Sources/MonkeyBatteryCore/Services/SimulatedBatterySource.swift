@@ -30,7 +30,12 @@ public final class SimulatedBatterySource: BatterySource {
         charge = Double(Self.rawMaxCapacity) * startPercent / 100
     }
 
-    public var now: Date { simulatedNow }
+    /// Advances on every call, not only on reads, so a countdown redrawn every second
+    /// moves at the simulated pace instead of jumping at each tick.
+    public var now: Date {
+        advance()
+        return simulatedNow
+    }
 
     public func read() -> BatterySample? {
         advance()
