@@ -35,7 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        startMonitor(simulated: CommandLine.arguments.contains("--simulate"))
+        startMonitor(simulation: simulationStart())
         updater = Updater()
         setUpStatusItem()
         observeSystem()
@@ -57,11 +57,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Setup
 
-    private func startMonitor(simulated: Bool) {
+    /// `--simulate` starts the playback at 9 %; `--simulate 2.5` starts it there, which
+    /// reaches the alert panel within seconds.
+    private func simulationStart() -> Double? {
+        let arguments = CommandLine.arguments
+        guard let index = arguments.firstIndex(of: "--simulate") else { return nil }
+        return arguments.dropFirst(index + 1).first.flatMap(Double.init) ?? 9
+    }
+
+    private func startMonitor(simulation startPercent: Double?) {
         let source: BatterySource
         let journal: SampleJournal
-        if simulated {
-            let simulation = SimulatedBatterySource()
+        if let startPercent {
+            let simulation = SimulatedBatterySource(startPercent: startPercent)
             self.simulation = simulation
             source = simulation
             journal = SampleJournal(url: nil)
@@ -154,7 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             popover.performClose(nil)
             return
         }
-        statusItem.isVisible = true
+        showStatusItem(BatteryPresentation(monitor))
         // A fresh view per opening: a hosting controller kept around would keep its
         // once-a-second timeline running behind a closed popover.
         popover.contentViewController = NSHostingController(
@@ -239,14 +247,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alerts.levelDidChange(presentation.level)
 
         let alwaysShow = UserDefaults.standard.bool(forKey: PreferenceKey.alwaysShow)
-        statusItem.isVisible = alwaysShow
-            || Date() < placementUntil
-            || presentation.level >= .low
-            || popover.isShown
-        statusItem.button?.image = renderMenuBarIcon(presentation.menuBar)
-        statusItem.button?.toolTip = "\(presentation.status) · \(presentation.percent) %"
+        if alwaysShow || Date() < placementUntil || presentation.level >= .low || popover.isShown {
+            showStatusItem(presentation)
+        } else {
+            hideStatusItem()
+        }
 
         scheduleRedraw(fast: presentation.isOnBattery && (presentation.secondsLeft ?? .infinity) < 3 * 60)
+    }
+
+    /// ⚠️ Hidden by shrinking to nothing, never with `isVisible = false`: that removes the
+    /// item from the menu bar, and macOS deletes the position the user ⌘-dragged it to
+    /// along with it (verified on macOS 27 — the "Preferred Position" default disappears).
+    /// A zero-length item keeps its slot.
+    private func hideStatusItem() {
+        statusItem.length = 0
+        statusItem.button?.image = nil
+        statusItem.button?.toolTip = nil
+    }
+
+    private func showStatusItem(_ presentation: BatteryPresentation) {
+        statusItem.length = NSStatusItem.variableLength
+        statusItem.button?.image = renderMenuBarIcon(presentation.menuBar)
+        statusItem.button?.toolTip = "\(presentation.status) · \(presentation.percent) %"
     }
 
     /// Once a second in the last minutes, when the menu bar shows seconds; every ten

@@ -16,7 +16,29 @@ struct PopoverView: View {
         }
     }
 
+    @ViewBuilder
     private func content(_ presentation: BatteryPresentation) -> some View {
+        if presentation.sample == nil {
+            noBattery
+        } else {
+            details(presentation)
+        }
+    }
+
+    /// A Mac mini or an iMac: nothing to measure, and nothing to pretend about.
+    private var noBattery: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            titleBar
+            Text(L("no_battery"))
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+            footer
+        }
+        .padding(16)
+        .frame(width: Theme.popoverWidth)
+    }
+
+    private func details(_ presentation: BatteryPresentation) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             titleBar
             Headline(presentation: presentation)

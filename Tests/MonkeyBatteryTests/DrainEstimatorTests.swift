@@ -76,6 +76,16 @@ struct DrainEstimatorTests {
         #expect(estimator.estimate(now: t(41), cutoffMilliampHours: cutoff) != nil)
     }
 
+    @Test("a full battery idling on the charger is not a drain")
+    func idlingWhenFull() {
+        // Read on this Mac: plugged in at 100 %, not charging, −34 mA.
+        let idle = reading(at: 0, charge: 8036, percent: 100, milliamps: -34, externalConnected: true)
+        var estimator = DrainEstimator()
+        estimator.ingest(idle, readAt: t(0))
+        #expect(!idle.isDraining)
+        #expect(estimator.estimate(now: t(0), cutoffMilliampHours: cutoff) == nil)
+    }
+
     @Test("the estimate is flagged settled after two minutes on battery")
     func settling() throws {
         var estimator = DrainEstimator()

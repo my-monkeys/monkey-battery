@@ -2,7 +2,7 @@ import Foundation
 
 /// A discharge played back fast, to see every alert without emptying a real battery.
 ///
-///     "Monkey Battery.app/Contents/MacOS/MonkeyBattery" --simulate
+///     "Monkey Battery.app/Contents/MacOS/MonkeyBattery" --simulate [start percent]
 ///
 /// Starts at 9 % with a steady 1.5 A drain, runs twenty times faster than real time,
 /// and slows to real time for the last three minutes so the alert panel can be watched

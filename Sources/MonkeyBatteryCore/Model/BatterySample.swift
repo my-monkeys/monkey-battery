@@ -50,9 +50,16 @@ public struct BatterySample: Codable, Equatable, Sendable {
         self.cycleCount = cycleCount
     }
 
-    /// Current flowing out of the battery. True on a charger too weak for the load, which
-    /// is why this does not look at `externalConnected`.
-    public var isDraining: Bool { milliamps < 0 && !isCharging }
+    /// On the charger, below this the battery is only idling. A full battery held at 100 %
+    /// reads a few dozen mA out (−34 mA measured) without anything being wrong.
+    static let pluggedDrainFloor = -300
+
+    /// Current flowing out of the battery — on a charger too, when it is too weak for the
+    /// load and the battery makes up the difference.
+    public var isDraining: Bool {
+        guard !isCharging else { return false }
+        return milliamps < (externalConnected ? Self.pluggedDrainFloor : 0)
+    }
 
     public var watts: Double { Double(abs(milliamps)) * Double(millivolts) / 1_000_000 }
 
