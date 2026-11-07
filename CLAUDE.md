@@ -80,10 +80,42 @@ Deux sources d'apprentissage, dans `ShutdownCalibration` :
 Le journal vit dans `~/Library/Application Support/fr.mymonkey.monkeybattery/journal.json`.
 La simulation utilise un journal **en mémoire** : elle ne doit pas apprendre un faux seuil.
 
+## La prévision se note elle-même
+
+L'estimation suppose que la consommation reste à sa moyenne récente : c'est **là**, pas dans la
+jauge, que vient l'erreur. Mesuré le 2026-11-07 (fixture `discharge-2026-11-07.json`) : la jauge
+est juste (charge perdue = courant intégré à 20 % près), le seuil aussi, mais à 10 % sur un Mac
+au repos (0,35 A) l'app annonçait **3 h** ; la charge a triplé et il restait **51 min**. Changer la
+constante de lissage n'y fait rien (écart moyen de 37 à 55 min de 1 min à 1 h).
+
+D'où une **fourchette apprise** (`ForecastReliability`) :
+
+- Chaque décharge est enregistrée, un point par minute (`DischargeRecord`), avec le débit
+  **sur lequel l'app prévoyait** à ce moment — c'est ce qui permet de noter ce qu'elle a
+  vraiment annoncé. En cours, elle vit dans le journal (survit à l'extinction) ; finie, elle part
+  dans `discharges.json` (30 dernières), écrit une fois par décharge.
+- Notation : de chaque point vers chaque niveau atteint ensuite, temps réel ÷ temps prévu.
+  Groupé par horizon (≤ 10 min, 30 min, 90 min, au-delà), un vote par décharge ; 10ᵉ et 90ᵉ
+  centiles = bas et haut de la fourchette. Valeurs par défaut larges tant qu'un horizon n'a pas
+  été vu dans **3 décharges**.
+- **Le bas de la fourchette mène** : barre des menus, panneau, notifications et niveaux
+  d'alerte. Le pop-over montre la fourchette et la prévision au rythme actuel en dessous.
+- Sous **3 min**, pas de fourchette : un compte à rebours final plus lent que l'horloge aurait
+  l'air cassé, et la consommation ne change pas assez en si peu de temps.
+
+⚠️ Trois pièges, tous attrapés par les tests :
+- Une borne `t × facteur(t)` avec un facteur interpolé **remonte** par endroits pendant que la
+  prévision baisse. Les bornes sont donc calculées aux horizons types, rendues croissantes, et
+  reliées par des segments (`ForecastReliability.bound`).
+- La jauge **se corrige vers le haut** (137 → 153 mAh à 2 %). Noter depuis ce point compare une
+  charge à un instant qui n'est pas le sien : il est écarté, pas écrêté.
+- **Un trou de plus de 5 min** (veille, app fermée) coupe la décharge en deux : endormi, le Mac
+  ne consomme presque rien, et la prévision passerait pour absurdement pessimiste.
+
 ## Niveaux d'alerte
 
-Pilotés par le **temps restant**, le pourcentage ne servant que de filet tant qu'il n'y a pas
-d'estimation : 1 % dure de deux à six minutes selon la charge.
+Pilotés par le **bas de la fourchette** de temps restant, le pourcentage ne servant que de filet
+tant qu'il n'y a pas d'estimation : 1 % dure de deux à six minutes selon la charge.
 
 | Niveau | Seuil | Effet |
 |---|---|---|
