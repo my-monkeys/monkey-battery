@@ -65,9 +65,11 @@ charge in mAh and the current. It smooths the drain over a few minutes, so a sho
 doesn't move the figure and a heavy compile does. It also projects the charge forward between
 gauge updates, so the countdown never freezes. Every figure is rounded down.
 
-The Mac also puts itself to sleep **before** the gauge reaches zero, and Apple doesn't say how
-far before. Until it knows, the app assumes a cautious 2 % reserve. The first time the battery
-actually runs out, it records where your Mac stopped and uses that from then on.
+The Mac may also put itself to sleep **before** the gauge reaches zero, and Apple doesn't say
+how far before. Until it knows, the app keeps a small 0.5 % reserve. Every discharge narrows it
+down: if your Mac keeps running below that point, the app lowers it to the lowest charge it has
+seen your Mac running at. And the first time the battery actually runs out, it records where
+your Mac stopped.
 
 ## What it doesn't do
 

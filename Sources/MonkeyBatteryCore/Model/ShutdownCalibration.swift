@@ -20,13 +20,21 @@ public struct Heartbeat: Codable, Equatable, Sendable {
 
 /// The charge at which this Mac actually gives up.
 ///
-/// macOS forces the Mac to sleep before the gauge reaches zero, and how far before is not
-/// published anywhere. Until it has been observed, the threshold is a deliberately high
-/// guess: announcing the end two minutes early costs a little trust, announcing it late
-/// costs the unsaved work this app exists to protect. Each observed shutdown replaces the
-/// guess, and the median of the last few keeps one odd reading from moving it.
+/// macOS may force the Mac to sleep before the gauge reaches zero, and how far before is
+/// not published anywhere. Two kinds of evidence narrow it down:
+///
+/// - **A shutdown** — the last heartbeat before a long silence at 1 % — gives the threshold
+///   itself. The median of the last few keeps one odd reading from moving it.
+/// - **Any reading on battery** proves the Mac still runs at that charge, so the threshold
+///   lies below. This one comes for free on every discharge, including the usual ones that
+///   end with the charger plugged in at 1 % — which is what this app is for, so shutdowns
+///   will be rare.
+///
+/// Until either is available, the threshold is a small reserve. It used to be 2 %: on the
+/// Mac this was written on, that announced the end while the Mac still ran at half that
+/// charge, minutes ahead at a light load.
 public struct ShutdownCalibration: Codable, Equatable, Sendable {
-    public static let defaultReserveFraction = 0.02
+    public static let defaultReserveFraction = 0.005
     static let keptObservations = 5
     /// A heartbeat followed by this much silence is a shutdown, not a missed tick.
     static let minimumSilence: TimeInterval = 120
@@ -35,15 +43,35 @@ public struct ShutdownCalibration: Codable, Equatable, Sendable {
     static let drainTolerance = 20.0
 
     public private(set) var observedCutoffs: [Int]
+    /// Optional so that a journal written before it existed still decodes.
+    public private(set) var lowestChargeSeenRunning: Int?
 
-    public init(observedCutoffs: [Int] = []) {
+    public init(observedCutoffs: [Int] = [], lowestChargeSeenRunning: Int? = nil) {
         self.observedCutoffs = observedCutoffs
+        self.lowestChargeSeenRunning = lowestChargeSeenRunning
     }
 
     public var isMeasured: Bool { !observedCutoffs.isEmpty }
 
+    /// Never above a charge the Mac has been seen running at: that would announce the end
+    /// at a point this Mac is known to get past.
     public func cutoffMilliampHours(rawMaxCapacity: Int) -> Double {
-        guard isMeasured else { return Double(rawMaxCapacity) * Self.defaultReserveFraction }
+        let threshold = isMeasured ? medianCutoff : Double(rawMaxCapacity) * Self.defaultReserveFraction
+        guard let lowestChargeSeenRunning else { return threshold }
+        return min(threshold, Double(lowestChargeSeenRunning))
+    }
+
+    /// Only a reading on battery counts: on the charger the Mac runs whatever the charge.
+    @discardableResult
+    public mutating func noteRunning(_ sample: BatterySample) -> Bool {
+        guard sample.isDraining, !sample.externalConnected,
+              sample.rawCharge < lowestChargeSeenRunning ?? .max
+        else { return false }
+        lowestChargeSeenRunning = sample.rawCharge
+        return true
+    }
+
+    private var medianCutoff: Double {
         let sorted = observedCutoffs.sorted()
         let middle = sorted.count / 2
         return sorted.count.isMultiple(of: 2)

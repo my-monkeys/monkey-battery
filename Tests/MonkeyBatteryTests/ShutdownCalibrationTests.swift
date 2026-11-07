@@ -15,9 +15,57 @@ struct ShutdownCalibrationTests {
     /// Plugged in after the shutdown, so the first reading is back on the charger.
     private let afterRestart = reading(at: 900, charge: 95, milliamps: 2500, externalConnected: true, isCharging: true)
 
-    @Test("before any shutdown, the threshold is a cautious 2 % of the pack")
+    @Test("before any evidence, the threshold is a small reserve of 0.5 % of the pack")
     func defaultGuess() {
-        #expect(abs(ShutdownCalibration().cutoffMilliampHours(rawMaxCapacity: 8215) - 164.3) < 1e-9)
+        #expect(abs(ShutdownCalibration().cutoffMilliampHours(rawMaxCapacity: 8215) - 41.075) < 1e-9)
+    }
+
+    @Test("a reading on battery below the guess pulls the threshold down to it")
+    func runningBelowTheGuess() {
+        var calibration = ShutdownCalibration()
+        let lowered = calibration.noteRunning(reading(at: 0, charge: 30, percent: 1))
+        #expect(lowered)
+        #expect(calibration.cutoffMilliampHours(rawMaxCapacity: 8215) == 30)
+
+        let raised = calibration.noteRunning(reading(at: 60, charge: 35, percent: 1))
+        #expect(!raised)
+        #expect(calibration.lowestChargeSeenRunning == 30)
+    }
+
+    @Test("a reading above the guess leaves it alone")
+    func runningAboveTheGuess() {
+        var calibration = ShutdownCalibration()
+        calibration.noteRunning(reading(at: 0, charge: 81, percent: 1))
+        #expect(abs(calibration.cutoffMilliampHours(rawMaxCapacity: 8215) - 41.075) < 1e-9)
+    }
+
+    @Test("on the charger, a low charge proves nothing about the battery")
+    func chargerReadingIgnored() {
+        var calibration = ShutdownCalibration()
+        let charging = reading(at: 0, charge: 10, milliamps: 2500, externalConnected: true, isCharging: true)
+        // Right after plugging in, the gauge still reports the discharge for up to a minute.
+        let stale = reading(at: 0, charge: 12, milliamps: -2000, externalConnected: true)
+        let fromCharging = calibration.noteRunning(charging)
+        let fromStale = calibration.noteRunning(stale)
+        #expect(!fromCharging)
+        #expect(!fromStale)
+        #expect(calibration.lowestChargeSeenRunning == nil)
+    }
+
+    @Test("a recorded shutdown above a charge the Mac has run at is overruled")
+    func shutdownAboveARunningCharge() {
+        var calibration = ShutdownCalibration()
+        calibration.recordShutdownIfAny(lastHeartbeat: heartbeat(percent: 1), firstAfterGap: afterRestart, gapEndedAt: t(900))
+        calibration.noteRunning(reading(at: 1000, charge: 60, percent: 1))
+        #expect(calibration.cutoffMilliampHours(rawMaxCapacity: 8215) == 60)
+    }
+
+    @Test("a journal written before the running floor existed still loads")
+    func decodesOlderJournal() throws {
+        let old = Data(#"{"observedCutoffs":[80]}"#.utf8)
+        let calibration = try JSONDecoder().decode(ShutdownCalibration.self, from: old)
+        #expect(calibration.observedCutoffs == [80])
+        #expect(calibration.lowestChargeSeenRunning == nil)
     }
 
     @Test("a heartbeat at 1 % followed by silence is a shutdown at the projected charge")
