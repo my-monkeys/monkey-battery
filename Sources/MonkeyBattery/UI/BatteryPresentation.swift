@@ -6,6 +6,9 @@ import MonkeyBatteryCore
 struct BatteryPresentation {
     let sample: BatterySample?
     let estimate: DrainEstimate?
+    /// Where the time left can really land, learnt from past discharges.
+    let band: ForecastBand?
+    let reliability: ForecastReliability
     let isDraining: Bool
     let level: AlertLevel
     let now: Date
@@ -16,19 +19,27 @@ struct BatteryPresentation {
         estimate = monitor.estimate
         isDraining = monitor.isDraining
         level = monitor.level
-        self.now = now ?? monitor.now
+        let now = now ?? monitor.now
+        self.now = now
+        band = monitor.band(at: now)
+        reliability = monitor.reliability
     }
 
     var percent: Int { sample?.percent ?? 0 }
 
+    /// At the current drain.
     var secondsLeft: TimeInterval? { estimate?.secondsLeft(at: now) }
+
+    /// What can be counted on, whatever the drain does next — the figure every surface
+    /// leads with, and the one the alerts go by.
+    var atLeast: TimeInterval? { band?.atLeast }
 
     var isOnBattery: Bool { isDraining || sample?.externalConnected == false }
 
     var menuBar: MenuBarContent {
         MenuBarContent(
             percent: percent,
-            text: isOnBattery ? (secondsLeft.map(TimeLeft.short) ?? "…") : "\(percent) %",
+            text: isOnBattery ? (atLeast.map(TimeLeft.short) ?? "…") : "\(percent) %",
             isCharging: sample?.isCharging == true,
             isAlarm: level >= .critical
         )

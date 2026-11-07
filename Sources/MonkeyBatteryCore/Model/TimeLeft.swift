@@ -37,6 +37,25 @@ public enum TimeLeft {
         }
     }
 
+    /// For the popover headline when the forecast is uncertain: `12 – 25 min`,
+    /// `50 min – 3 h 05`, `1 h 10 – 3 h 00`. Both ends rounded down, like everything else.
+    public static func range(_ low: TimeInterval, _ high: TimeInterval) -> String {
+        let from = Int(max(0, low)), to = Int(max(0, high))
+        guard to >= 3600 else { return "\(minutes(from)) – \(minutes(to)) min" }
+        return "\(rangeEnd(from)) – \(rangeEnd(to))"
+    }
+
+    private static func rangeEnd(_ whole: Int) -> String {
+        whole >= 3600
+            ? String(format: "%d h %02d", whole / 3600, whole % 3600 / 60)
+            : "\(minutes(whole)) min"
+    }
+
+    /// Whole minutes, to five once they are far off: `25`, `4`.
+    private static func minutes(_ whole: Int) -> Int {
+        whole >= 900 ? whole / 60 / 5 * 5 : whole / 60
+    }
+
     /// `m:ss`, for the last two minutes.
     public static func clock(_ seconds: Int) -> String {
         String(format: "%d:%02d", seconds / 60, seconds % 60)

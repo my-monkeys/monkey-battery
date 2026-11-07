@@ -58,7 +58,7 @@ final class AlertCenter {
     // MARK: - Private
 
     private var timeLeft: String {
-        BatteryPresentation(monitor).secondsLeft.map(TimeLeft.long) ?? "—"
+        BatteryPresentation(monitor).atLeast.map(TimeLeft.long) ?? "—"
     }
 
     private func showPanel() {

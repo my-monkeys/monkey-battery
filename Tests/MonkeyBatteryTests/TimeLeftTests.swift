@@ -27,4 +27,11 @@ struct TimeLeftTests {
         #expect(TimeLeft.long(299) == "4 min")
         #expect(TimeLeft.long(61) == "1:01")
     }
+
+    @Test("a range shares its unit when it can, and rounds both ends down")
+    func range() {
+        #expect(TimeLeft.range(12 * 60 + 59, 25 * 60 + 30) == "12 – 25 min")
+        #expect(TimeLeft.range(50 * 60, 3 * 3600 + 5 * 60 + 59) == "50 min – 3 h 05")
+        #expect(TimeLeft.range(70 * 60, 3 * 3600) == "1 h 10 – 3 h 00")
+    }
 }
