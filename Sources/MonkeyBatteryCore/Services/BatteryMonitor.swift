@@ -56,6 +56,7 @@ public final class BatteryMonitor: ObservableObject {
         estimator.ingest(reading, readAt: now)
         journal.append(reading)
         sample = reading
+        if journal.calibration.noteRunning(reading) { calibration = journal.calibration }
         evaluate()
         recordHeartbeat()
         journal.save(now: now, urgent: level >= .low)

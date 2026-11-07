@@ -54,18 +54,30 @@ rebours avance entre deux rafraîchissements de la jauge. Tout est arrondi **ver
 
 ## Le seuil d'extinction s'apprend
 
-Le Mac se met en veille **avant** que la jauge n'atteigne zéro, et Apple ne publie pas de
-combien. Tant que rien n'a été observé : réserve prudente de **2 %** de la capacité (annoncer
-la fin trop tôt coûte un peu de confiance, trop tard coûte le travail non enregistré).
+Le Mac se met peut-être en veille **avant** que la jauge n'atteigne zéro, et Apple ne publie pas
+de combien. Tant que rien n'a été observé : réserve de **0,5 %** de la capacité.
 
-À chaque tick sur batterie, un **battement** (`Heartbeat`) est écrit : dernière lecture + charge
-projetée à cet instant. Il est sauvé à **chaque tick** dès le niveau `.low`, pour survivre à
-l'extinction. Au relancement ou au réveil, `ShutdownCalibration` le reprend : s'il date de
-**≥ 120 s**, à **≤ 1 %** ou avec `AtCriticalLevel`, et que la charge n'a pas continué de
-baisser sans l'app, c'était l'extinction → la charge projetée devient le seuil (médiane des 5
-dernières). Un couvercle fermé à 5 % n'est **pas** compté. Le journal vit dans
-`~/Library/Application Support/fr.mymonkey.monkeybattery/journal.json`.
+⚠️ **La réserve était de 2 %, beaucoup trop haut** : le 2026-11-07, l'app annonçait l'extinction
+pendant que le Mac tournait encore à **81 mAh** (75 mAh à la dernière lecture avant le
+branchement), soit la moitié des 165 mAh supposés, plusieurs minutes d'avance à faible charge.
+Près de zéro, le pourcentage de macOS suit `ceil(raw / rawMax)` (1 % jusqu'à ~82 mAh) et sa propre
+estimation visait encore 3 min à 2 A : macOS compte descendre vers 0 mAh.
 
+Deux sources d'apprentissage, dans `ShutdownCalibration` :
+
+- **Toute lecture sur batterie** (`noteRunning`) prouve que le Mac tourne à cette charge : le
+  seuil est en dessous. `lowestChargeSeenRunning` plafonne le seuil, deviné ou mesuré. C'est la
+  source **principale** : le but de l'app étant qu'on branche à temps, les vraies extinctions
+  seront rares. ⚠️ Seulement sans chargeur : branché, le Mac tourne quelle que soit la charge,
+  et la jauge renvoie encore la décharge pendant une minute après le branchement.
+- **Une extinction** : à chaque tick sur batterie, un **battement** (`Heartbeat`) est écrit :
+  dernière lecture + charge projetée à cet instant. Il est sauvé à **chaque tick** dès le niveau
+  `.low`, pour survivre à l'extinction. Au relancement ou au réveil, il est repris : s'il date de
+  **≥ 120 s**, à **≤ 1 %** ou avec `AtCriticalLevel`, et que la charge n'a pas continué de baisser
+  sans l'app, c'était l'extinction → la charge projetée devient le seuil (médiane des 5
+  dernières). Un couvercle fermé à 5 % n'est **pas** compté.
+
+Le journal vit dans `~/Library/Application Support/fr.mymonkey.monkeybattery/journal.json`.
 La simulation utilise un journal **en mémoire** : elle ne doit pas apprendre un faux seuil.
 
 ## Niveaux d'alerte
