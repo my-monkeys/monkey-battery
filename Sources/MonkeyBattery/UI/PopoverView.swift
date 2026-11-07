@@ -52,6 +52,7 @@ struct PopoverView: View {
                 DischargeChart(
                     samples: monitor.discharge,
                     estimate: presentation.estimate,
+                    band: presentation.band,
                     cutoffMilliampHours: monitor.cutoffMilliampHours ?? 0,
                     level: presentation.level,
                     now: presentation.now
@@ -123,15 +124,18 @@ private struct Headline: View {
                 Text("\(presentation.percent) %")
                     .numeric()
                     .font(.system(size: 34, weight: .semibold))
-            } else if let seconds = presentation.secondsLeft {
-                Text(TimeLeft.long(seconds))
+            } else if let band = presentation.band, let likely = presentation.secondsLeft {
+                Text(band.isWide ? TimeLeft.range(band.atLeast, band.atMost) : TimeLeft.long(band.atLeast))
                     .numeric()
                     .font(.system(size: 34, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
                     .foregroundStyle(Theme.numberTint(for: presentation.level))
                     .contentTransition(.numericText(countsDown: true))
-                Text(subline)
+                Text(subline(band: band, likely: likely))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text(L("measuring"))
                     .font(.system(size: 22, weight: .semibold))
@@ -143,9 +147,13 @@ private struct Headline: View {
         }
     }
 
-    private var subline: String {
-        let settling = presentation.estimate?.isSettled == false ? " · \(L("settling"))" : ""
-        return L("until_sleep") + settling
+    /// Under a range, the figure at the current drain, so the range reads as "it depends
+    /// on what you do next" rather than as vagueness.
+    private func subline(band: ForecastBand, likely: TimeInterval) -> String {
+        var parts = [L("until_sleep")]
+        if band.isWide { parts.append(L("at_current_drain", TimeLeft.long(likely))) }
+        if presentation.estimate?.isSettled == false { parts.append(L("settling")) }
+        return parts.joined(separator: " · ")
     }
 }
 
@@ -203,10 +211,20 @@ private struct DetailRows: View {
             )
             .help(calibration.isMeasured ? "" : L("threshold_guessed_help"))
 
+            row(L("forecast"), forecastState)
+                .help(L("forecast_help"))
+
             if let sample = presentation.sample {
                 row(L("health"), "\(Figures.percent(sample.healthFraction)) · \(L("cycles", sample.cycleCount))")
             }
         }
+    }
+
+    private var forecastState: String {
+        let reliability = presentation.reliability
+        return reliability.isLearned
+            ? L("forecast_learned", reliability.discharges)
+            : L("forecast_learning", reliability.discharges, ForecastReliability.minimumDischarges)
     }
 
     private func row(_ label: String, _ value: String) -> some View {

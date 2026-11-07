@@ -11,7 +11,7 @@
 [![macOS](https://img.shields.io/badge/macOS-14%2B-black.svg)](#install)
 [![Swift](https://img.shields.io/badge/Swift-6-orange.svg)](Package.swift)
 
-<img src="docs/popover.png" width="320" alt="The popover: twenty minutes left, the discharge so far and where it is heading">
+<img src="docs/popover.png" width="320" alt="The popover: ten to forty-five minutes left depending on the drain, the discharge so far and where it is heading">
 
 </div>
 
@@ -20,8 +20,8 @@ screen goes black. The work you hadn't saved is gone, and you never got a warnin
 actually see.
 
 This app makes that warning hard to miss. Below 10 %, it puts the time left next to the battery
-icon. The figure counts down to the moment the Mac puts itself to sleep, not to an
-optimistic 0 %. In the last two minutes, a red panel appears above every window, every Space
+icon: the time you can count on, even if you open something heavy next. The figure counts
+down to the moment the Mac puts itself to sleep, not to an optimistic 0 %. In the last two minutes, a red panel appears above every window, every Space
 and every full-screen app, and an alarm sounds until the charger is plugged in.
 
 <table>
@@ -70,6 +70,19 @@ how far before. Until it knows, the app keeps a small 0.5 % reserve. Every disch
 down: if your Mac keeps running below that point, the app lowers it to the lowest charge it has
 seen your Mac running at. And the first time the battery actually runs out, it records where
 your Mac stopped.
+
+## It grades its own forecasts
+
+A forecast is only as good as the assumption behind it: that you keep using the Mac the way
+you are now. You rarely do. At 10 % on an idle Mac, the drain says three hours; start a build
+and it is fifty minutes.
+
+No curve can tell what you will open next, but the app can measure how much your drain
+tends to change. After every discharge, it goes back over what it announced and checks it
+against what actually happened. From those errors it learns a range, which it shows in the
+popover: "10 – 45 min", with the figure at the current drain underneath. The menu bar and
+the alerts use the low end of that range, so you are warned in time even when the drain
+climbs. The range starts out wide, and narrows to your own habits after three discharges.
 
 ## What it doesn't do
 

@@ -3,10 +3,12 @@ import MonkeyBatteryCore
 import SwiftUI
 
 /// The discharge so far, and where it is heading: a measured line, then a dashed one to
-/// the shutdown point at the projected time.
+/// the shutdown point at the current drain — and, when the forecast is uncertain, a
+/// fainter one to where the low end of the range puts it.
 struct DischargeChart: View {
     let samples: [BatterySample]
     let estimate: DrainEstimate?
+    let band: ForecastBand?
     let cutoffMilliampHours: Double
     let level: AlertLevel
     let now: Date
@@ -69,6 +71,22 @@ struct DischargeChart: View {
                 .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [3, 4]))
             }
 
+            ForEach(cautiousProjection) { point in
+                LineMark(
+                    x: .value("time", point.date),
+                    y: .value("charge", point.percent),
+                    series: .value("series", L("chart_cautious"))
+                )
+                .foregroundStyle(Theme.tint(for: level).opacity(0.4))
+                .lineStyle(StrokeStyle(lineWidth: 1, lineCap: .round, dash: [1, 3]))
+            }
+
+            if let end = cautiousProjection.last {
+                PointMark(x: .value("time", end.date), y: .value("charge", end.percent))
+                    .symbolSize(16)
+                    .foregroundStyle(Theme.tint(for: level).opacity(0.5))
+            }
+
             if let end = projection.last {
                 PointMark(x: .value("time", end.date), y: .value("charge", end.percent))
                     .symbolSize(28)
@@ -121,6 +139,15 @@ struct DischargeChart: View {
         ]
     }
 
+    /// Only for a wide range, and only when its end fits on the chart.
+    private var cautiousProjection: [Point] {
+        guard let estimate, let band, band.isWide, band.atLeast < 3 * 3600 else { return [] }
+        return [
+            Point(date: now, percent: estimate.projectedCharge / rawMax * 100),
+            Point(date: now.addingTimeInterval(band.atLeast), percent: cutoffPercent),
+        ]
+    }
+
     /// A multiple of ten, so the middle gridline lands on a round figure too.
     private var yMax: Double {
         let highest = measured.map(\.percent).max() ?? 10
@@ -141,7 +168,8 @@ struct DischargeChart: View {
 
     private var xDomain: ClosedRange<Date> {
         let start = measured.first?.date ?? now
-        let end = projection.last?.date ?? measured.last?.date ?? now
+        let end = [projection.last?.date, cautiousProjection.last?.date, measured.last?.date]
+            .compactMap { $0 }.max() ?? now
         return start...max(end, start.addingTimeInterval(60))
     }
 }

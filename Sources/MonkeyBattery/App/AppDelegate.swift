@@ -253,7 +253,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hideStatusItem()
         }
 
-        scheduleRedraw(fast: presentation.isOnBattery && (presentation.secondsLeft ?? .infinity) < 3 * 60)
+        scheduleRedraw(fast: presentation.isOnBattery && (presentation.atLeast ?? .infinity) < 3 * 60)
     }
 
     /// ⚠️ Hidden by shrinking to nothing, never with `isVisible = false`: that removes the

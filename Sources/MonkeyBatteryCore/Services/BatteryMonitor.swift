@@ -16,6 +16,8 @@ public final class BatteryMonitor: ObservableObject {
     @Published public private(set) var level: AlertLevel = .none
     @Published public private(set) var discharge: [BatterySample] = []
     @Published public private(set) var calibration: ShutdownCalibration
+    /// How far this Mac's forecasts have turned out to drift, learnt from past discharges.
+    @Published public private(set) var reliability: ForecastReliability
 
     public var thresholds: AlertThresholds {
         didSet { evaluate() }
@@ -27,22 +29,35 @@ public final class BatteryMonitor: ObservableObject {
 
     private let source: BatterySource
     private var journal: SampleJournal
+    private var archive: DischargeArchive
     private var estimator = DrainEstimator()
     private var escalation = AlertEscalation()
     private var timer: Timer?
     private var powerObserver: PowerSourceObserver?
 
-    public init(source: BatterySource, journal: SampleJournal, thresholds: AlertThresholds) {
+    public init(
+        source: BatterySource,
+        journal: SampleJournal,
+        archive: DischargeArchive = DischargeArchive(url: nil),
+        thresholds: AlertThresholds
+    ) {
         self.source = source
         self.journal = journal
+        self.archive = archive
         self.thresholds = thresholds
         calibration = journal.calibration
+        reliability = ForecastReliability(records: archive.records)
     }
 
     public var now: Date { source.now }
 
     public var cutoffMilliampHours: Double? {
         sample.map { calibration.cutoffMilliampHours(rawMaxCapacity: $0.rawMaxCapacity) }
+    }
+
+    /// Nil while there is no forecast.
+    public func band(at date: Date) -> ForecastBand? {
+        estimate.map { reliability.band(secondsLeft: $0.secondsLeft(at: date)) }
     }
 
     public func start() {
@@ -59,6 +74,7 @@ public final class BatteryMonitor: ObservableObject {
         if journal.calibration.noteRunning(reading) { calibration = journal.calibration }
         evaluate()
         recordHeartbeat()
+        recordForecast()
         journal.save(now: now, urgent: level >= .low)
         scheduleNextTick()
     }
@@ -80,7 +96,9 @@ public final class BatteryMonitor: ObservableObject {
         let draining = estimator.isDraining(sample)
         let cutoff = calibration.cutoffMilliampHours(rawMaxCapacity: sample.rawMaxCapacity)
         let estimate = draining ? estimator.estimate(now: now, cutoffMilliampHours: cutoff) : nil
-        let computed = thresholds.level(for: sample, isDraining: draining, secondsLeft: estimate?.secondsLeft(at: now))
+        // The low end of the band: warned in time even if the drain is about to climb.
+        let atLeast = estimate.map { reliability.band(secondsLeft: $0.secondsLeft(at: now)).atLeast }
+        let computed = thresholds.level(for: sample, isDraining: draining, secondsLeft: atLeast)
         let (level, isNew) = escalation.update(computed: computed, onBattery: draining || !sample.externalConnected)
 
         self.estimate = estimate
@@ -93,6 +111,35 @@ public final class BatteryMonitor: ObservableObject {
     private func recordHeartbeat() {
         guard isDraining, let sample, let estimate else { return }
         journal.heartbeat = Heartbeat(aliveAt: now, sample: sample, projectedCharge: estimate.projectedCharge)
+    }
+
+    /// Adds this moment to the discharge under way, so it can be graded once it is over.
+    /// The first minutes are left out: the forecast is not shown as settled yet.
+    private func recordForecast() {
+        guard isDraining else { return finishRecord() }
+        guard let sample, let estimate, estimate.isSettled else { return }
+
+        let point = DischargePoint(
+            at: sample.updatedAt,
+            charge: sample.rawCharge,
+            percent: sample.percent,
+            forecastMilliamps: estimate.milliamps
+        )
+        if var record = journal.currentRecord, record.append(point) {
+            journal.currentRecord = record
+        } else {
+            finishRecord()
+            journal.currentRecord = DischargeRecord(first: point)
+        }
+    }
+
+    private func finishRecord() {
+        guard let record = journal.currentRecord else { return }
+        journal.currentRecord = nil
+        if archive.add(record) {
+            reliability = ForecastReliability(records: archive.records)
+            journal.save(now: now, urgent: true)
+        }
     }
 
     /// A relaunch or a wake: if the last heartbeat was taken at the very end, the Mac

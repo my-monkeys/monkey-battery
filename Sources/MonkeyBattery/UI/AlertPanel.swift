@@ -124,7 +124,7 @@ struct AlertCardView: View {
     }
 
     private func countdown(_ presentation: BatteryPresentation) -> String {
-        guard let seconds = presentation.secondsLeft else { return "…" }
+        guard let seconds = presentation.atLeast else { return "…" }
         return seconds < 1 ? L("panel_imminent") : TimeLeft.clock(Int(seconds))
     }
 

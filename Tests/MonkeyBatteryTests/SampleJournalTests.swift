@@ -45,11 +45,13 @@ struct SampleJournalTests {
         journal.append(reading(at: 0, charge: 90, percent: 1))
         journal.heartbeat = Heartbeat(aliveAt: t(20), sample: reading(at: 0, charge: 90, percent: 1), projectedCharge: 82)
         journal.calibration = ShutdownCalibration(observedCutoffs: [80])
+        journal.currentRecord = steadyRecord(minutes: 3, forecast: 600, actual: 600)
         journal.save(now: t(20), urgent: true)
 
         let reloaded = SampleJournal(url: url)
         #expect(reloaded.samples.count == 1)
         #expect(reloaded.heartbeat?.projectedCharge == 82)
         #expect(reloaded.calibration.observedCutoffs == [80])
+        #expect(reloaded.currentRecord?.points.count == 4)
     }
 }

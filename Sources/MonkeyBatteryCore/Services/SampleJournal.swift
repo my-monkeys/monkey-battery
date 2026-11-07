@@ -14,6 +14,8 @@ public struct SampleJournal: Sendable {
     public private(set) var samples: [BatterySample] = []
     public var calibration = ShutdownCalibration()
     public var heartbeat: Heartbeat?
+    /// The discharge under way, until it ends and moves to the `DischargeArchive`.
+    public var currentRecord: DischargeRecord?
 
     private let url: URL?
     private var lastSavedAt: Date?
@@ -27,6 +29,7 @@ public struct SampleJournal: Sendable {
         samples = file.samples
         calibration = file.calibration
         heartbeat = file.heartbeat
+        currentRecord = file.currentRecord
     }
 
     public static var defaultURL: URL {
@@ -56,7 +59,7 @@ public struct SampleJournal: Sendable {
         guard let url else { return }
         if !urgent, let lastSavedAt, now.timeIntervalSince(lastSavedAt) < Self.relaxedSaveInterval { return }
 
-        let file = File(samples: samples, calibration: calibration, heartbeat: heartbeat)
+        let file = File(samples: samples, calibration: calibration, heartbeat: heartbeat, currentRecord: currentRecord)
         guard let data = try? JSONEncoder().encode(file) else { return }
         try? FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true
@@ -69,5 +72,6 @@ public struct SampleJournal: Sendable {
         var samples: [BatterySample]
         var calibration: ShutdownCalibration
         var heartbeat: Heartbeat?
+        var currentRecord: DischargeRecord?
     }
 }
